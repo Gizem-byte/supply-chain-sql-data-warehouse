@@ -8,7 +8,7 @@ Script Purpose:
 	  Run this script to re-define the DDL structure of 'bronze' Tables
 
 -- SILVER LAYER: Normalized entity tables (DROP IF EXISTS before create)
--- Columns kept exactly as in original flat table
+-- Column names are chnaged for better readibility and for better understandning
 
 ===============================================================================
 */
