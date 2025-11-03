@@ -9,7 +9,16 @@ Script Purpose:
 ===============================================================================
 */
 
+PRINT 'Starting Bronze layer table creation...';
+
+-- =======================================================================
+-- Main Supply Chain Dataset
+-- =======================================================================
+
+
+
 IF OBJECT_ID ('bronze.dataco_supply_chain','U') IS NOT NULL
+    PRINT 'Dropping existing table [bronze.dataco_supply_chain] if present.';
 	DROP TABLE bronze.dataco_supply_chain;
 GO
 
@@ -71,8 +80,16 @@ CREATE TABLE bronze.dataco_supply_chain(
 );
 GO
 
+PRINT 'Created table bronze.dataco_supply_chain';
+
+
+
+-- =======================================================================
+-- Tokenized Access Logs (Optional)
+-- =======================================================================
 
 IF OBJECT_ID ('bronze.tokenized_access_logs','U') IS NOT NULL
+    PRINT 'Dropping existing table: bronze.tokenized_access_logs';
 	DROP TABLE bronze.tokenized_access_logs;
 GO
 
@@ -87,3 +104,9 @@ CREATE TABLE bronze.tokenized_access_logs (
     "ip"             VARCHAR(100),
     "url"            VARCHAR(500)
 );
+GO
+
+
+PRINT 'Created table: bronze.tokenized_access_logs';
+PRINT 'Bronze layer table creation completed successfully.';
+GO
