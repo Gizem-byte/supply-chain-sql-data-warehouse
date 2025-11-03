@@ -6,7 +6,10 @@ Purpose:
     • Drops the existing Supply_Chain_Datawarehouse database if it exists.
     • Creates a fresh new version of the database.
     • Always (re)creates the schemas: bronze, silver, gold.
-    • WARNING: This version is DESTRUCTIVE — all existing data will be lost.
+    • WARNING:
+    Running this script will drop the entire ' Supply_Chain_Datawarehouse' database if it exists. 
+    All data in the database will be permanently deleted. Proceed with caution 
+    and ensure you have proper backups before running this script.
 ===============================================================================
 */
 
