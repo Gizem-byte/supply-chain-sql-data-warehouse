@@ -52,7 +52,7 @@ CREATE TABLE bronze.dataco_supply_chain(
     "Order City"                    VARCHAR(100),
     "Order Country"                 VARCHAR(100),
     "Order Customer Id"             INT,
-    "order date (DateOrders)"       DATE,
+    "order date (DateOrders)"       DATETIME,
     "Order Id"                      INT,
     "Order Item Cardprod Id"        INT,
     "Order Item Discount"           DECIMAL(12,2),
@@ -75,7 +75,7 @@ CREATE TABLE bronze.dataco_supply_chain(
     "Product Name"                  VARCHAR(255),
     "Product Price"                 DECIMAL(12,2),
     "Product Status"                INT,
-    "shipping date (DateOrders)"    DATE,
+    "shipping date (DateOrders)"    DATETIME,
     "Shipping Mode"                 VARCHAR(50)
 );
 GO
