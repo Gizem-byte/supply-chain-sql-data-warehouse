@@ -13,11 +13,11 @@ Parameters:
 	  This stored procedure does not accept any parameters or return any values.
 
 Usage Example:
-    EXEC bronze.load_bronze;
+    EXEC proc_load_bronze;
 ===============================================================================
 */
 
-CREATE OR ALTER PROCEDURE bronze.load_bronze AS 
+CREATE OR ALTER PROCEDURE proc_load_bronze AS 
 BEGIN
 	DECLARE @start_time DATETIME,@end_time DATETIME,@batch_start_time DATETIME,@batch_end_time DATETIME;
 	BEGIN TRY
@@ -41,6 +41,7 @@ BEGIN
 		WITH (
 		   FIRSTROW = 2,
 		   FIELDTERMINATOR = ',',
+		   CODEPAGE = '1252',   -- ✅ read as UTF-8
 		   TABLOCK
 		);
 		SET @end_time= GETDATE();
