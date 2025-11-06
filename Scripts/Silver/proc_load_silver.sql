@@ -1,26 +1,38 @@
 /*
 ===============================================================================
-Stored Procedure: proc_load_silver
+Stored Procedure: Load Silver Layer (Bronze -> Silver)
+Stored Procedure : proc_load_silver
+Purpose          : Transform/clean Bronze data into Silver layer
 ===============================================================================
-Purpose:
-    • Load cleaned and standardized data from Bronze to Silver layer.
-    • Aligned with ddl_silver.sql structure.
-    • Includes full column mapping lineage and business cleaning logic:
-        - Normalizes payment types
-        - Cleans country names
-        - Expands state codes to full names
-        - Derives full name, date, time, and street components
+===============================================================================
+Script Purpose:
+    This stored procedure performs the ETL (Extract, Transform, Load) process to 
+    populate the 'silver' schema tables from the 'bronze' schema.
+	Actions Performed:
+		- Truncates Silver tables.
+		- Inserts transformed and cleansed data from Bronze into Silver tables.
+		
+Parameters:
+    None. 
+	  This stored procedure does not accept any parameters or return any values.
+
+Usage Example:
+    EXEC proc.load_silver;
 ===============================================================================
 */
 
 CREATE OR ALTER PROCEDURE proc_load_silver AS
 BEGIN
-    PRINT '===========================================================';
-    PRINT 'Starting load from Bronze to Silver';
-    PRINT '===========================================================';
+    SET NOCOUNT ON;
 
+    PRINT '=========================================================';
+    PRINT 'Starting Silver Layer Load';
+    PRINT '=========================================================';
+
+    -- Clear existing Silver data
     TRUNCATE TABLE silver.dataco_supply_chain;
 
+    -- Insert transformed and cleaned data from Bronze
     INSERT INTO silver.dataco_supply_chain (
         payment_type,
         actual_shipping_days,
@@ -39,9 +51,11 @@ BEGIN
         customer_state,
         customer_full_street,
         customer_zipcode,
+        customer_street_number,
+        customer_street_name,
         store_department_id,
         store_department_name,
-        store_location_latitude,  
+        store_location_latitude,
         store_location_longitude,
         order_continent,
         order_city,
@@ -60,51 +74,50 @@ BEGIN
         order_item_gross_total,
         order_item_net_total,
         order_profit_per_order,
-        order_subregion,
         order_state,
         order_status,
         order_zipcode,
+        order_subregion,
         product_barcode_id,
         product_name,
-        shipping_date,
         shipping_mode,
-        customer_street_number,
-        customer_street_name
+        shipping_date,
+        shipping_time
     )
-
     SELECT
-        -- Payment Type cleanup
+        /* --- Payment Type Normalization --- */
         CASE 
-            WHEN [Type] = 'CASH' THEN 'Cash'
-            WHEN [Type] = 'DEBIT' THEN 'Debit'
-            WHEN [Type] = 'TRANSFER' THEN 'Transfer (unspecified)'
-            WHEN [Type] = 'PAYMENT' THEN 'Payment (unspecified)'
+            WHEN Type = 'CASH' THEN 'Cash'
+            WHEN Type = 'DEBIT' THEN 'Debit'
+            WHEN Type = 'TRANSFER' THEN 'Transfer (unspecified)'
+            WHEN Type = 'PAYMENT' THEN 'Payment (unspecified)'
             ELSE 'Unknown'
-        END AS payment_type,               -- from [Type]
+        END AS payment_type,
 
-        [Days for shipping (real)] AS actual_shipping_days,                  -- from [Days for shipping (real)]
-        [Days for shipment (scheduled)] AS scheduled_delivery_days,          -- from [Days for shipment (scheduled)]
-        [Benefit per order] AS earning_per_order,                            -- from [Benefit per order]
-        [Sales per customer] AS total_sale_per_customer,                     -- from [Sales per customer]
-        [Delivery Status] AS order_delivery_status,                          -- from [Delivery Status]
-        [Late_delivery_risk] AS order_late_delivery_risk,                    -- from [Late_delivery_risk]
-        [Category Id] AS product_category_id,                                -- from [Category Id]
-        [Category Name] AS product_category_name,                            -- from [Category Name]
-        [Customer City] AS customer_city,                                    -- from [Customer City]
+        [Days for shipping (real)] AS actual_shipping_days,
+        [Days for shipment (scheduled)] AS scheduled_delivery_days,
+        [Benefit per order] AS earning_per_order,
+        [Sales per customer] AS total_sale_per_customer,
+        [Delivery Status] AS order_delivery_status,
+        [Late_delivery_risk] AS order_late_delivery_risk,
+        [Category Id] AS product_category_id,
+        [Category Name] AS product_category_name,
+        [Customer City] AS customer_city,
 
-        -- Country normalization
+        /* --- Country Normalization --- */
         CASE 
-            WHEN [Customer Country] = 'EE. UU.' THEN 'United States'
+            WHEN [Customer Country] IN ('EE. UU.', 'US', 'U.S.') THEN 'United States'
+            WHEN [Customer Country] = 'MTxico' THEN 'México'
+            WHEN [Customer Country] = 'Panamß' THEN 'Panamá'
             ELSE [Customer Country]
-        END AS customer_country,                                            -- from [Customer Country]
+        END AS customer_country,
 
-        -- Derived full name
-        CONCAT(COALESCE([Customer Fname], ''), ' ', COALESCE([Customer Lname], '')) AS customer_full_name,  -- derived from [Customer Fname] + [Customer Lname]
+        /* --- Full Name Merge --- */
+        CONCAT(COALESCE([Customer Fname], ''), ' ', COALESCE([Customer Lname], '')) AS customer_full_name,
+        [Customer Id] AS customer_id,
+        [Customer Segment] AS types_of_customers,
 
-        [Customer Id] AS customer_id,                                       -- from [Customer Id]
-        [Customer Segment] AS types_of_customers,                           -- from [Customer Segment]
-
-        -- Customer state normalization
+        /* --- Customer State Normalization --- */
         CASE 
             WHEN [Customer State] = 'UT' THEN 'Utah'
             WHEN [Customer State] = 'WI' THEN 'Wisconsin'
@@ -148,72 +161,76 @@ BEGIN
             WHEN [Customer State] = 'WA' THEN 'Washington'
             WHEN [Customer State] = 'MT' THEN 'Montana'
             WHEN [Customer State] = 'VA' THEN 'Virginia'
-			WHEN [Customer State] = 'MA' THEN 'Massachusetts'
+            WHEN [Customer State] = 'MA' THEN 'Massachusetts'
             WHEN [Customer State] = 'AZ' THEN 'Arizona'
             ELSE [Customer State]
-        END AS customer_state,                                              -- from [Customer State]
+        END AS customer_state,
 
-        [Customer Street] AS customer_full_street,                          -- from [Customer Street]
-        [Customer Zipcode] AS customer_zipcode,                             -- from [Customer Zipcode]
-        [Department Id] AS store_department_id,                             -- from [Department Id]
-        [Department Name] AS store_department_name,                         -- from [Department Name]
-        [Latitude] AS store_location_latitude,                              -- from [Latitude]
-        [Longitude] AS store_location_longitude,                            -- from [Longitude]
+        [Customer Street] AS customer_full_street,
+        [Customer Zipcode] AS customer_zipcode,
+        LEFT([Customer Street], CHARINDEX(' ', [Customer Street]) - 1) AS customer_street_number,
+        RIGHT([Customer Street], LEN([Customer Street]) - CHARINDEX(' ', [Customer Street])) AS customer_street_name,
 
-        -- Market normalization
+        [Department Id] AS store_department_id,
+        [Department Name] AS store_department_name,
+        [Latitude] AS store_location_latitude,
+        [Longitude] AS store_location_longitude,
+
+        /* --- Market Normalization --- */
         CASE 
             WHEN Market = 'LATAM' THEN 'Latin America'
             WHEN Market = 'USCA' THEN 'North America'
             ELSE Market
-        END AS order_continent,                                             -- from [Market]
+        END AS order_continent,
 
-        [Order City] AS order_city,                                         -- from [Order City]
-        [Order Country] AS order_country,                                   -- from [Order Country]
-        [Order Customer Id] AS order_customer_id,                           -- from [Order Customer Id]
+        [Order City] AS order_city,
+        [Order Country] AS order_country,
+        [Order Customer Id] AS order_customer_id,
 
-        -- Order date & time derived from text
-        TRY_CONVERT(DATE, [order date (DateOrders)], 101) AS order_date,     -- derived from [order date (DateOrders)]
-        FORMAT(TRY_CONVERT(DATETIME, [order date (DateOrders)], 101), 'HH:mm') AS order_time, -- derived from [order date (DateOrders)]
+        /* --- Order Date & Time Split --- */
+        TRY_CAST([order date (DateOrders)] AS DATE) AS order_date,
+        FORMAT(TRY_CAST([order date (DateOrders)] AS DATETIME), 'HH:mm') AS order_time,
 
-        [Order Id] AS order_id,                                             -- from [Order Id]
-        [Order Item Cardprod Id] AS order_item_product_barcode_id,          -- from [Order Item Cardprod Id]
+        [Order Id] AS order_id,
+        [Order Item Cardprod Id] AS order_item_product_barcode_id,
 
-        CAST(ROUND([Order Item Discount], 1) AS FLOAT) AS order_item_discount,              -- from [Order Item Discount]
-        CAST(ROUND([Order Item Discount Rate], 2) AS FLOAT) AS order_item_discount_percentage, -- from [Order Item Discount Rate]
+        CAST(ROUND([Order Item Discount], 1) AS FLOAT) AS order_item_discount,
+        CAST(ROUND([Order Item Discount Rate], 2) AS FLOAT) AS order_item_discount_percentage,
+        [Order Item Id] AS order_item_id,
 
-        [Order Item Id] AS order_item_id,                                   -- from [Order Item Id]
-        [Product Price] AS product_unit_price,                              -- from [Product Price]
-        [Order Item Profit Ratio] AS order_item_profit_ratio,               -- from [Order Item Profit Ratio]
-        [Order Item Quantity] AS order_item_quantity,                       -- from [Order Item Quantity]
-        [Sales] AS order_item_gross_total,                                  -- from [Sales]
-        [Order Item Total] AS order_item_net_total,                         -- from [Order Item Total]
-        [Order Profit Per Order] AS order_profit_per_order,                 -- from [Order Profit Per Order]
-        [Order Region] AS order_subregion,                                  -- from [Order Region]
-        [Order State] AS order_state,                                       -- from [Order State]
-        [Order Status] AS order_status,                                     -- from [Order Status]
-        [Order Zipcode] AS order_zipcode,                                   -- from [Order Zipcode]
-        [Product Card Id] AS product_barcode_id,                            -- from [Product Card Id]
-        [Product Name] AS product_name,                                     -- from [Product Name]
+        /* --- Numeric Rounding for Monetary Columns --- */
+        ROUND([Product Price], 1) AS product_unit_price,
+        [Order Item Profit Ratio] AS order_item_profit_ratio,
+        [Order Item Quantity] AS order_item_quantity,
+        ROUND([Sales], 1) AS order_item_gross_total,
+        ROUND([Order Item Total], 1) AS order_item_net_total,
+        ROUND([Order Profit Per Order], 1) AS order_profit_per_order,
 
-        TRY_CONVERT(DATE, [shipping date (DateOrders)], 101) AS shipping_date, -- from [shipping date (DateOrders)]
-        [Shipping Mode] AS shipping_mode,                                   -- from [Shipping Mode]
+        [Order State] AS order_state,
 
-        -- Street split logic
+        /* --- Order Status Normalization: Title Case --- */
         CASE 
-            WHEN CHARINDEX(' ', [Customer Street]) > 0 
-                THEN LEFT([Customer Street], CHARINDEX(' ', [Customer Street]) - 1)
-            ELSE NULL
-        END AS customer_street_number,                                      -- derived from [Customer Street]
+            WHEN [Order Status] IS NULL THEN NULL
+            ELSE 
+                CONCAT(
+                    UPPER(LEFT(REPLACE(LOWER([Order Status]), '_', ' '), 1)), 
+                    SUBSTRING(REPLACE(LOWER([Order Status]), '_', ' '), 2, LEN([Order Status]))
+                )
+        END AS order_status,
 
-        CASE 
-            WHEN CHARINDEX(' ', [Customer Street]) > 0 
-                THEN RIGHT([Customer Street], LEN([Customer Street]) - CHARINDEX(' ', [Customer Street]))
-            ELSE NULL
-        END AS customer_street_name                                         -- derived from [Customer Street]
+        [Order Zipcode] AS order_zipcode,
+        [Order Region] AS order_subregion,
+        [Product Card Id] AS product_barcode_id,
+        [Product Name] AS product_name,
+        [Shipping Mode] AS shipping_mode,
+
+        /* --- Shipping Date & Time Split --- */
+        TRY_CAST([shipping date (DateOrders)] AS DATE) AS shipping_date,
+        FORMAT(TRY_CAST([shipping date (DateOrders)] AS DATETIME), 'HH:mm') AS shipping_time
 
     FROM bronze.dataco_supply_chain;
 
-    PRINT 'Silver Layer loaded successfully.';
-    PRINT '===========================================================';
+    PRINT 'Silver Layer Load Completed Successfully!';
 END;
 GO
+
