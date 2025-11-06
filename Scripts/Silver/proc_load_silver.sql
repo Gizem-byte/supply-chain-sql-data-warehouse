@@ -1,236 +1,228 @@
 /*
-===============================================================================
-Stored Procedure: Load Silver Layer (Bronze -> Silver)
-Stored Procedure : proc_load_silver
-Purpose          : Transform/clean Bronze data into Silver layer
-===============================================================================
-===============================================================================
-Script Purpose:
-    This stored procedure performs the ETL (Extract, Transform, Load) process to 
-    populate the 'silver' schema tables from the 'bronze' schema.
-	Actions Performed:
-		- Truncates Silver tables.
-		- Inserts transformed and cleansed data from Bronze into Silver tables.
-		
-Parameters:
-    None. 
-	  This stored procedure does not accept any parameters or return any values.
+====================================================================================
+Stored Procedure: proc_normalize_silver
+------------------------------------------------------------------------------------
+Purpose:
+    Safely rebuild and normalize the Silver layer.
 
-Usage Example:
-    EXEC proc.load_silver;
-===============================================================================
+Steps:
+    1. Drop any old Silver normalized tables (customer, product, shipping, orders, transactions)
+    2. Recreate clean empty versions with correct structures
+    3. Populate them directly from silver.dataco_supply_chain
+    4. Show progress at every step
+====================================================================================
 */
 
-CREATE OR ALTER PROCEDURE proc_load_silver AS
+CREATE OR ALTER PROCEDURE proc_normalize_silver AS
 BEGIN
     SET NOCOUNT ON;
 
-    PRINT '=========================================================';
-    PRINT 'Starting Silver Layer Load';
-    PRINT '=========================================================';
+    PRINT '=========================================';
+    PRINT '🚀 Starting Safe Rebuild + Normalization';
+    PRINT '=========================================';
 
-    -- Clear existing Silver data
-    TRUNCATE TABLE silver.dataco_supply_chain;
+    /* =======================================================
+       STEP 1️⃣ - DROP OLD TABLES
+    ======================================================= */
+    PRINT '🧹 Dropping old Silver tables if they exist...';
 
-    -- Insert transformed and cleaned data from Bronze
-    INSERT INTO silver.dataco_supply_chain (
-        payment_type,
-        actual_shipping_days,
-        scheduled_delivery_days,
-        earning_per_order,
-        total_sale_per_customer,
-        order_delivery_status,
-        order_late_delivery_risk,
+    DROP TABLE IF EXISTS silver.order_transaction;
+    DROP TABLE IF EXISTS silver.orders;
+    DROP TABLE IF EXISTS silver.shipping;
+    DROP TABLE IF EXISTS silver.product;
+    DROP TABLE IF EXISTS silver.customer;
+
+    PRINT '✅ Old tables dropped successfully.';
+
+
+    /* =======================================================
+       STEP 2️⃣ - CREATE CLEAN TABLE STRUCTURES
+    ======================================================= */
+    PRINT '📦 Creating clean Silver entity tables...';
+
+    CREATE TABLE silver.customer (
+        customer_id INT PRIMARY KEY,
+        customer_full_name VARCHAR(255),
+        customer_city VARCHAR(100),
+        customer_state VARCHAR(100),
+        customer_country VARCHAR(100),
+        customer_zipcode INT,
+        types_of_customers VARCHAR(50)
+    );
+
+    CREATE TABLE silver.product (
+        product_barcode_id INT PRIMARY KEY,
+        product_name VARCHAR(255),
+        product_category_id INT,
+        product_category_name VARCHAR(150),
+        store_department_id INT,
+        store_department_name VARCHAR(150),
+        product_unit_price DECIMAL(18,2),
+        store_location_latitude DECIMAL(10,6),
+        store_location_longitude DECIMAL(10,6)
+    );
+
+    CREATE TABLE silver.shipping (
+        shipping_mode VARCHAR(50) PRIMARY KEY,
+        scheduled_delivery_days INT,
+        actual_shipping_days INT,
+        order_late_delivery_risk INT,
+        order_delivery_status VARCHAR(50)
+    );
+
+    CREATE TABLE silver.orders (
+        order_id INT PRIMARY KEY,
+        customer_id INT,
+        order_date DATE,
+        order_time VARCHAR(5),
+        order_state VARCHAR(100),
+        order_status VARCHAR(50),
+        order_zipcode DECIMAL(12,0),
+        order_subregion VARCHAR(100),
+        order_country VARCHAR(100),
+        order_city VARCHAR(100),
+        order_continent VARCHAR(50)
+    );
+
+    CREATE TABLE silver.order_transaction (
+        order_item_id INT PRIMARY KEY,
+        order_id INT,
+        product_barcode_id INT,
+        shipping_mode VARCHAR(50),
+        payment_type VARCHAR(50),
+        order_item_quantity INT,
+        order_item_discount DECIMAL(18,2),
+        order_item_discount_percentage DECIMAL(18,2),
+        order_item_gross_total DECIMAL(18,2),
+        order_item_net_total DECIMAL(18,2),
+        order_profit_per_order DECIMAL(18,2),
+        earning_per_order DECIMAL(18,2),
+        total_sale_per_customer DECIMAL(18,2),
+        late_delivery_flag INT,
+        shipping_date DATE,
+        shipping_time VARCHAR(5)
+    );
+
+    PRINT '✅ Clean table structures created.';
+
+
+    /* =======================================================
+       STEP 3️⃣ - POPULATE TABLES
+    ======================================================= */
+    PRINT '🚚 Populating data into entity tables...';
+
+    -- Customer
+    INSERT INTO silver.customer
+    SELECT DISTINCT
+        customer_id,
+        customer_full_name,
+        customer_city,
+        customer_state,
+        customer_country,
+        customer_zipcode,
+        types_of_customers
+    FROM silver.dataco_supply_chain
+    WHERE customer_id IS NOT NULL;
+
+    PRINT '✅ silver.customer populated.';
+
+
+    -- Product
+    INSERT INTO silver.product
+    SELECT DISTINCT
+        product_barcode_id,
+        product_name,
         product_category_id,
         product_category_name,
-        customer_city,
-        customer_country,
-        customer_full_name,
-        customer_id,
-        types_of_customers,
-        customer_state,
-        customer_full_street,
-        customer_zipcode,
-        customer_street_number,
-        customer_street_name,
         store_department_id,
         store_department_name,
+        product_unit_price,
         store_location_latitude,
-        store_location_longitude,
-        order_continent,
-        order_city,
-        order_country,
-        order_customer_id,
+        store_location_longitude
+    FROM silver.dataco_supply_chain
+    WHERE product_barcode_id IS NOT NULL;
+
+    PRINT '✅ silver.product populated.';
+
+
+    -- Shipping
+    INSERT INTO silver.shipping
+    SELECT DISTINCT
+        shipping_mode,
+        scheduled_delivery_days,
+        actual_shipping_days,
+        order_late_delivery_risk,
+        order_delivery_status
+    FROM silver.dataco_supply_chain
+    WHERE shipping_mode IS NOT NULL;
+
+    PRINT '✅ silver.shipping populated.';
+
+
+    -- Orders
+    INSERT INTO silver.orders
+    SELECT DISTINCT
+        order_id,
+        customer_id,
         order_date,
         order_time,
-        order_id,
-        order_item_product_barcode_id,
-        order_item_discount,
-        order_item_discount_percentage,
-        order_item_id,
-        product_unit_price,
-        order_item_profit_ratio,
-        order_item_quantity,
-        order_item_gross_total,
-        order_item_net_total,
-        order_profit_per_order,
         order_state,
         order_status,
         order_zipcode,
         order_subregion,
+        order_country,
+        order_city,
+        order_continent
+    FROM silver.dataco_supply_chain
+    WHERE order_id IS NOT NULL;
+
+    PRINT '✅ silver.orders populated.';
+
+
+    -- Order Transactions
+    INSERT INTO silver.order_transaction (
+        order_item_id,
+        order_id,
         product_barcode_id,
-        product_name,
         shipping_mode,
+        payment_type,
+        order_item_quantity,
+        order_item_discount,
+        order_item_discount_percentage,
+        order_item_gross_total,
+        order_item_net_total,
+        order_profit_per_order,
+        earning_per_order,
+        total_sale_per_customer,
+        late_delivery_flag,
         shipping_date,
         shipping_time
     )
     SELECT
-        /* --- Payment Type Normalization --- */
-        CASE 
-            WHEN Type = 'CASH' THEN 'Cash'
-            WHEN Type = 'DEBIT' THEN 'Debit'
-            WHEN Type = 'TRANSFER' THEN 'Transfer (unspecified)'
-            WHEN Type = 'PAYMENT' THEN 'Payment (unspecified)'
-            ELSE 'Unknown'
-        END AS payment_type,
+        order_item_id,
+        order_id,
+        product_barcode_id,
+        shipping_mode,
+        payment_type,
+        order_item_quantity,
+        order_item_discount,
+        order_item_discount_percentage,
+        order_item_gross_total,
+        order_item_net_total,
+        order_profit_per_order,
+        earning_per_order,
+        total_sale_per_customer,
+        order_late_delivery_risk,
+        shipping_date,
+        shipping_time
+    FROM silver.dataco_supply_chain
+    WHERE order_item_id IS NOT NULL;
 
-        [Days for shipping (real)] AS actual_shipping_days,
-        [Days for shipment (scheduled)] AS scheduled_delivery_days,
-        [Benefit per order] AS earning_per_order,
-        [Sales per customer] AS total_sale_per_customer,
-        [Delivery Status] AS order_delivery_status,
-        [Late_delivery_risk] AS order_late_delivery_risk,
-        [Category Id] AS product_category_id,
-        [Category Name] AS product_category_name,
-        [Customer City] AS customer_city,
+    PRINT '✅ silver.order_transaction populated.';
 
-        /* --- Country Normalization --- */
-        CASE 
-            WHEN [Customer Country] IN ('EE. UU.', 'US', 'U.S.') THEN 'United States'
-            WHEN [Customer Country] = 'MTxico' THEN 'México'
-            WHEN [Customer Country] = 'Panamß' THEN 'Panamá'
-            ELSE [Customer Country]
-        END AS customer_country,
 
-        /* --- Full Name Merge --- */
-        CONCAT(COALESCE([Customer Fname], ''), ' ', COALESCE([Customer Lname], '')) AS customer_full_name,
-        [Customer Id] AS customer_id,
-        [Customer Segment] AS types_of_customers,
-
-        /* --- Customer State Normalization --- */
-        CASE 
-            WHEN [Customer State] = 'UT' THEN 'Utah'
-            WHEN [Customer State] = 'WI' THEN 'Wisconsin'
-            WHEN [Customer State] = 'NC' THEN 'North Carolina'
-            WHEN [Customer State] = 'MI' THEN 'Michigan'
-            WHEN [Customer State] = 'TN' THEN 'Tennessee'
-            WHEN [Customer State] = 'OK' THEN 'Oklahoma'
-            WHEN [Customer State] = 'KY' THEN 'Kentucky'
-            WHEN [Customer State] = 'CO' THEN 'Colorado'
-            WHEN [Customer State] = 'NV' THEN 'Nevada'
-            WHEN [Customer State] = 'PA' THEN 'Pennsylvania'
-            WHEN [Customer State] = 'WV' THEN 'West Virginia'
-            WHEN [Customer State] = 'GA' THEN 'Georgia'
-            WHEN [Customer State] = 'RI' THEN 'Rhode Island'
-            WHEN [Customer State] = 'IN' THEN 'Indiana'
-            WHEN [Customer State] = 'DC' THEN 'District of Columbia'
-            WHEN [Customer State] = 'MD' THEN 'Maryland'
-            WHEN [Customer State] = 'OR' THEN 'Oregon'
-            WHEN [Customer State] = 'CT' THEN 'Connecticut'
-            WHEN [Customer State] = 'AR' THEN 'Arkansas'
-            WHEN [Customer State] = 'AL' THEN 'Alabama'
-            WHEN [Customer State] = 'MN' THEN 'Minnesota'
-            WHEN [Customer State] = 'ID' THEN 'Idaho'
-            WHEN [Customer State] = 'TX' THEN 'Texas'
-            WHEN [Customer State] = 'NM' THEN 'New Mexico'
-            WHEN [Customer State] = 'ND' THEN 'North Dakota'
-            WHEN [Customer State] = 'PR' THEN 'Puerto Rico'
-            WHEN [Customer State] = 'IL' THEN 'Illinois'
-            WHEN [Customer State] = 'MO' THEN 'Missouri'
-            WHEN [Customer State] = 'SC' THEN 'South Carolina'
-            WHEN [Customer State] = 'DE' THEN 'Delaware'
-            WHEN [Customer State] = 'FL' THEN 'Florida'
-            WHEN [Customer State] = 'CA' THEN 'California'
-            WHEN [Customer State] = 'HI' THEN 'Hawaii'
-            WHEN [Customer State] = 'OH' THEN 'Ohio'
-            WHEN [Customer State] = 'NY' THEN 'New York'
-            WHEN [Customer State] = 'NJ' THEN 'New Jersey'
-            WHEN [Customer State] = 'IA' THEN 'Iowa'
-            WHEN [Customer State] = 'KS' THEN 'Kansas'
-            WHEN [Customer State] = 'LA' THEN 'Louisiana'
-            WHEN [Customer State] = 'WA' THEN 'Washington'
-            WHEN [Customer State] = 'MT' THEN 'Montana'
-            WHEN [Customer State] = 'VA' THEN 'Virginia'
-            WHEN [Customer State] = 'MA' THEN 'Massachusetts'
-            WHEN [Customer State] = 'AZ' THEN 'Arizona'
-            ELSE [Customer State]
-        END AS customer_state,
-
-        [Customer Street] AS customer_full_street,
-        [Customer Zipcode] AS customer_zipcode,
-        LEFT([Customer Street], CHARINDEX(' ', [Customer Street]) - 1) AS customer_street_number,
-        RIGHT([Customer Street], LEN([Customer Street]) - CHARINDEX(' ', [Customer Street])) AS customer_street_name,
-
-        [Department Id] AS store_department_id,
-        [Department Name] AS store_department_name,
-        [Latitude] AS store_location_latitude,
-        [Longitude] AS store_location_longitude,
-
-        /* --- Market Normalization --- */
-        CASE 
-            WHEN Market = 'LATAM' THEN 'Latin America'
-            WHEN Market = 'USCA' THEN 'North America'
-            ELSE Market
-        END AS order_continent,
-
-        [Order City] AS order_city,
-        [Order Country] AS order_country,
-        [Order Customer Id] AS order_customer_id,
-
-        /* --- Order Date & Time Split --- */
-        TRY_CAST([order date (DateOrders)] AS DATE) AS order_date,
-        FORMAT(TRY_CAST([order date (DateOrders)] AS DATETIME), 'HH:mm') AS order_time,
-
-        [Order Id] AS order_id,
-        [Order Item Cardprod Id] AS order_item_product_barcode_id,
-
-        CAST(ROUND([Order Item Discount], 1) AS FLOAT) AS order_item_discount,
-        CAST(ROUND([Order Item Discount Rate], 2) AS FLOAT) AS order_item_discount_percentage,
-        [Order Item Id] AS order_item_id,
-
-        /* --- Numeric Rounding for Monetary Columns --- */
-        ROUND([Product Price], 1) AS product_unit_price,
-        [Order Item Profit Ratio] AS order_item_profit_ratio,
-        [Order Item Quantity] AS order_item_quantity,
-        ROUND([Sales], 1) AS order_item_gross_total,
-        ROUND([Order Item Total], 1) AS order_item_net_total,
-        ROUND([Order Profit Per Order], 1) AS order_profit_per_order,
-
-        [Order State] AS order_state,
-
-        /* --- Order Status Normalization: Title Case --- */
-        CASE 
-            WHEN [Order Status] IS NULL THEN NULL
-            ELSE 
-                CONCAT(
-                    UPPER(LEFT(REPLACE(LOWER([Order Status]), '_', ' '), 1)), 
-                    SUBSTRING(REPLACE(LOWER([Order Status]), '_', ' '), 2, LEN([Order Status]))
-                )
-        END AS order_status,
-
-        [Order Zipcode] AS order_zipcode,
-        [Order Region] AS order_subregion,
-        [Product Card Id] AS product_barcode_id,
-        [Product Name] AS product_name,
-        [Shipping Mode] AS shipping_mode,
-
-        /* --- Shipping Date & Time Split --- */
-        TRY_CAST([shipping date (DateOrders)] AS DATE) AS shipping_date,
-        FORMAT(TRY_CAST([shipping date (DateOrders)] AS DATETIME), 'HH:mm') AS shipping_time
-
-    FROM bronze.dataco_supply_chain;
-
-    PRINT 'Silver Layer Load Completed Successfully!';
+    PRINT '=========================================';
+    PRINT '🎯 Rebuild + Normalization Completed!';
+    PRINT '=========================================';
 END;
 GO
-
