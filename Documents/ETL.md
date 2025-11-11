@@ -3,9 +3,9 @@
 The ETL (Extract, Transform, Load) process forms the backbone of the **Data Engineering Phase** in this project.  
 It defines how raw operational data is **extracted, transformed, and loaded** into the SQL Data Warehouse following the **Medallion Architecture** (Bronze → Silver → Gold).
 
-![ETL Process]("C:\Users\gizem\Desktop\DATACO PROJECT DONE\ETL.png")
 
----
+---<img width="943" height="842" alt="ETL" src="https://github.com/user-attachments/assets/16e3b066-08cf-4935-acda-c1f43ca116fb" />
+
 
 ### 🟢 **Extraction Phase**
 
