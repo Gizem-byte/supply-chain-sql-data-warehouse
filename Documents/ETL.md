@@ -69,4 +69,3 @@ All transformation logic was applied in the **Silver Layer** through stored proc
 
 ---
 
-📘 *This ETL framework ensures that every pipeline stage — from raw ingestion to analytical delivery — is transparent, reproducible, and optimized for clean, reliable KPI analysis in the Gold Layer.*
