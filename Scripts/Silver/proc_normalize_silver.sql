@@ -111,7 +111,9 @@ BEGIN
     ======================================================= */
     PRINT '🚚 Populating data into entity tables...';
 
+    -- =====================
     -- Customer
+    -- =====================
     INSERT INTO silver.customer
     SELECT DISTINCT
         customer_id,
@@ -127,39 +129,47 @@ BEGIN
     PRINT '✅ silver.customer populated.';
 
 
-    -- Product
+    -- =====================
+    -- Product (Deduplication Safe)
+    -- =====================
     INSERT INTO silver.product
-    SELECT DISTINCT
+    SELECT
         product_barcode_id,
-        product_name,
-        product_category_id,
-        product_category_name,
-        store_department_id,
-        store_department_name,
-        product_unit_price,
-        store_location_latitude,
-        store_location_longitude
+        MAX(product_name) AS product_name,
+        MAX(product_category_id) AS product_category_id,
+        MAX(product_category_name) AS product_category_name,
+        MAX(store_department_id) AS store_department_id,
+        MAX(store_department_name) AS store_department_name,
+        MAX(product_unit_price) AS product_unit_price,
+        MAX(store_location_latitude) AS store_location_latitude,
+        MAX(store_location_longitude) AS store_location_longitude
     FROM silver.dataco_supply_chain
-    WHERE product_barcode_id IS NOT NULL;
+    WHERE product_barcode_id IS NOT NULL
+    GROUP BY product_barcode_id;
 
     PRINT '✅ silver.product populated.';
 
 
-    -- Shipping
+    -- =====================
+    -- Shipping (Deduplication Safe)
+    -- =====================
     INSERT INTO silver.shipping
-    SELECT DISTINCT
+    SELECT
         shipping_mode,
-        scheduled_delivery_days,
-        actual_shipping_days,
-        order_late_delivery_risk,
-        order_delivery_status
+        AVG(scheduled_delivery_days) AS scheduled_delivery_days,
+        AVG(actual_shipping_days) AS actual_shipping_days,
+        AVG(order_late_delivery_risk) AS order_late_delivery_risk,
+        MAX(order_delivery_status) AS order_delivery_status
     FROM silver.dataco_supply_chain
-    WHERE shipping_mode IS NOT NULL;
+    WHERE shipping_mode IS NOT NULL
+    GROUP BY shipping_mode;
 
     PRINT '✅ silver.shipping populated.';
 
 
+    -- =====================
     -- Orders
+    -- =====================
     INSERT INTO silver.orders
     SELECT DISTINCT
         order_id,
@@ -179,7 +189,9 @@ BEGIN
     PRINT '✅ silver.orders populated.';
 
 
+    -- =====================
     -- Order Transactions
+    -- =====================
     INSERT INTO silver.order_transaction (
         order_item_id,
         order_id,
