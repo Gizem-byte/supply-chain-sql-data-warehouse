@@ -19,10 +19,10 @@ Usage Example:
 
 CREATE OR ALTER PROCEDURE proc_load_bronze AS 
 BEGIN
-	DECLARE @start_time DATETIME,@end_time DATETIME,@batch_start_time DATETIME,@batch_end_time DATETIME;
+	DECLARE @start_time DATETIME,@end_time DATETIME;
 	BEGIN TRY
 
-		SET @batch_start_time= GETDATE();
+
 		PRINT '========================================================';
 		PRINT 'Loading Bronze Layer';
 		PRINT '========================================================';
@@ -47,33 +47,6 @@ BEGIN
 		SET @end_time= GETDATE();
 		PRINT '>> LOAD DURATION:' + CAST(DATEDIFF(second,@start_time,@end_time) AS NVARCHAR) + ' seconds';
 		PRINT '------------------------------------------------------------------------';
-
-
-		PRINT '-----------------------------------------------------------';
-		PRINT 'Loading Clickstream Table';
-		PRINT '-----------------------------------------------------------';
-
-		SET @start_time= GETDATE();
-		PRINT '>> Truncating: bronze.tokenized_access_logs';
-		TRUNCATE TABLE bronze.tokenized_access_logs;
-
-		PRINT '>> Inserting Data Into: bronze.tokenized_access_logs';
-		BULK INSERT bronze.tokenized_access_logs
-		FROM 'C:\Users\gizem\Desktop\dataco\tokenized_access_logs.csv'
-		WITH (
-		   FIRSTROW = 2,
-		   FIELDTERMINATOR = ',',
-		   TABLOCK
-		);
-		SET @end_time= GETDATE();
-		PRINT '>> LOAD DURATION:' + CAST(DATEDIFF(second,@start_time,@end_time) AS NVARCHAR) + ' seconds';
-		PRINT '------------------------------------------------------------------------';
-
-		SET @batch_end_time= GETDATE();
-		PRINT '=====================================================================';
-		PRINT 'LOADING BRONZE LAYER IS COMPLETED';
-		PRINT '>> TOTAL LOAD DURATION:' + CAST(DATEDIFF(second,@batch_start_time,@batch_end_time) AS NVARCHAR) + ' seconds';
-		PRINT '=====================================================================';
 
 
 	END TRY
