@@ -62,7 +62,7 @@ CREATE TABLE silver.dataco_supply_chain_cleaned (
     order_item_quantity              INT,                -- from [Order Item Quantity]
     order_item_gross_total           DECIMAL(18,4),      -- from [Sales]
     order_item_net_total             DECIMAL(18,4),      -- from [Order Item Total]
-    order_profit_per_item           DECIMAL(18,4),      -- from [Order Profit Per Order]
+    order_profit_per_order_item           DECIMAL(18,4),      -- from [Order Profit Per Order]
     order_subregion                  VARCHAR(100),       -- from [Order Region]
     order_state                      VARCHAR(100),       -- from [Order State]
     order_status                     VARCHAR(50),        -- from [Order Status]
