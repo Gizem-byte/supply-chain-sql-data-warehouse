@@ -1,119 +1,124 @@
-/*
-====================================================================================
-Stored Procedure: proc_normalize_silver
-------------------------------------------------------------------------------------
-Purpose:
-    Safely rebuild and normalize the Silver layer.
-
-Steps:
-    1. Drop any old Silver normalized tables (customer, product, shipping, orders, transactions)
-    2. Recreate clean empty versions with correct structures
-    3. Populate them directly from silver.dataco_supply_chain
-    4. Show progress at every step
-====================================================================================
-*/
+/*=====================================================================
+   PROCEDURE: proc_normalize_silver
+   PURPOSE  : Normalize silver.dataco_supply_chain_cleaned into atomic entity tables
+              (customer, product, orders, order_item)
+   AUTHOR   : Gizem
+   STATUS   : ✅ FINAL DOCUMENTED VERSION
+=====================================================================*/
 
 CREATE OR ALTER PROCEDURE proc_normalize_silver AS
 BEGIN
     SET NOCOUNT ON;
 
-    PRINT '=========================================';
-    PRINT '🚀 Starting Safe Rebuild + Normalization';
-    PRINT '=========================================';
+    PRINT '🚀 Starting Silver Normalization (Final - from silver.dataco_supply_chain_cleaned)';
+    PRINT '===================================================================';
 
     /* =======================================================
-       STEP 1️⃣ - DROP OLD TABLES
+       1️⃣ Drop old normalized tables if they exist
     ======================================================= */
-    PRINT '🧹 Dropping old Silver tables if they exist...';
-
-    DROP TABLE IF EXISTS silver.order_transaction;
+    DROP TABLE IF EXISTS silver.order_item;
     DROP TABLE IF EXISTS silver.orders;
-    DROP TABLE IF EXISTS silver.shipping;
     DROP TABLE IF EXISTS silver.product;
     DROP TABLE IF EXISTS silver.customer;
 
-    PRINT '✅ Old tables dropped successfully.';
+    PRINT '🧹 Old Silver tables dropped. Creating new normalized structures...';
 
 
     /* =======================================================
-       STEP 2️⃣ - CREATE CLEAN TABLE STRUCTURES
+       2️⃣ Create new normalized Silver tables
     ======================================================= */
-    PRINT '📦 Creating clean Silver entity tables...';
 
+    /* -------------------------
+       CUSTOMER TABLE
+       Grain: One row per unique customer
+    ------------------------- */
     CREATE TABLE silver.customer (
-        customer_id INT PRIMARY KEY,
-        customer_full_name VARCHAR(255),
-        customer_city VARCHAR(100),
-        customer_state VARCHAR(100),
-        customer_country VARCHAR(100),
-        customer_zipcode INT,
-        types_of_customers VARCHAR(50)
+        customer_id INT PRIMARY KEY,             -- Unique ID for each customer
+        customer_full_name VARCHAR(255),         -- Combined first + last name
+        customer_city VARCHAR(100),              -- City of residence
+        customer_state VARCHAR(100),             -- State of residence
+        customer_country VARCHAR(100),           -- Country
+        customer_zipcode INT,                    -- Postal/ZIP code
+        types_of_customers VARCHAR(50)           -- Customer segment (e.g., Consumer, Corporate)
     );
 
+
+    /* -------------------------
+       PRODUCT TABLE
+       Grain: One row per unique product_barcode_id
+       Deduplication used (ROW_NUMBER) since same product sold many times
+    ------------------------- */
     CREATE TABLE silver.product (
-        product_barcode_id INT PRIMARY KEY,
-        product_name VARCHAR(255),
-        product_category_id INT,
-        product_category_name VARCHAR(150),
-        store_department_id INT,
-        store_department_name VARCHAR(150),
-        product_unit_price DECIMAL(18,2),
-        store_location_latitude DECIMAL(10,6),
-        store_location_longitude DECIMAL(10,6)
+        product_barcode_id INT PRIMARY KEY,      -- Unique product identifier (barcode)
+        product_name VARCHAR(255),               -- Product name
+        product_category_id INT,                 -- Product category ID
+        product_category_name VARCHAR(150),      -- Product category label
+        store_department_id INT,                 -- Store department code
+        store_department_name VARCHAR(150),      -- Store department name
+        product_unit_price DECIMAL(18,4),        -- Unit price of the product
+        store_location_latitude DECIMAL(10,6),   -- Latitude coordinate of store
+        store_location_longitude DECIMAL(10,6)   -- Longitude coordinate of store
     );
 
-    CREATE TABLE silver.shipping (
-        shipping_mode VARCHAR(50) PRIMARY KEY,
-        scheduled_delivery_days INT,
-        actual_shipping_days INT,
-        order_late_delivery_risk INT,
-        order_delivery_status VARCHAR(50)
-    );
 
+    /* -------------------------
+       ORDERS TABLE
+       Grain: One row per unique order_id
+       Represents: Order header and delivery-level info
+    ------------------------- */
     CREATE TABLE silver.orders (
-        order_id INT PRIMARY KEY,
-        customer_id INT,
-        order_date DATE,
-        order_time VARCHAR(5),
-        order_state VARCHAR(100),
-        order_status VARCHAR(50),
-        order_zipcode DECIMAL(12,0),
-        order_subregion VARCHAR(100),
-        order_country VARCHAR(100),
-        order_city VARCHAR(100),
-        order_continent VARCHAR(50)
+        order_id INT PRIMARY KEY,                -- Unique ID per order
+        customer_id INT,                         -- FK → silver.customer
+        payment_type VARCHAR(50),                -- Payment method (Cash, Debit, etc.)
+        order_date DATE,                         -- Order placement date
+        order_time VARCHAR(5),                   -- Order placement time (HH:MM)
+        order_state VARCHAR(100),                -- State where delivery occurred
+        order_status VARCHAR(50),                -- Order status (Delivered, Canceled)
+        order_zipcode DECIMAL(12,0),             -- Delivery ZIP/postal code
+        order_subregion VARCHAR(100),            -- Geographic subregion
+        order_country VARCHAR(100),              -- Country of delivery
+        order_city VARCHAR(100),                 -- City of delivery
+        order_continent VARCHAR(50),             -- Continent (USCA, LATAM, etc.)
+        shipping_mode VARCHAR(50),               -- Shipping mode (Standard, Express)
+        scheduled_delivery_days INT,             -- Planned delivery duration (days)
+        actual_shipping_days INT,                -- Actual delivery duration (days)
+        order_late_delivery_risk INT,            -- Binary flag: was it late? (0/1)
+        order_delivery_status VARCHAR(50),       -- Status text (On time, Late, Canceled)
+        shipping_date DATE,                      -- When shipment left warehouse
+        shipping_time VARCHAR(5)                 -- Time of shipment dispatch
     );
 
-    CREATE TABLE silver.order_transaction (
-        order_item_id INT PRIMARY KEY,
-        order_id INT,
-        product_barcode_id INT,
-        shipping_mode VARCHAR(50),
-        payment_type VARCHAR(50),
-        order_item_quantity INT,
-        order_item_discount DECIMAL(18,2),
-        order_item_discount_percentage DECIMAL(18,2),
-        order_item_gross_total DECIMAL(18,2),
-        order_item_net_total DECIMAL(18,2),
-        order_profit_per_order DECIMAL(18,2),
-        earning_per_order DECIMAL(18,2),
-        total_sale_per_customer DECIMAL(18,2),
-        late_delivery_flag INT,
-        shipping_date DATE,
-        shipping_time VARCHAR(5)
+
+    /* -------------------------
+       ORDER ITEM TABLE
+       Grain: One row per product line within an order
+       Represents: transactional & profitability details
+    ------------------------- */
+    CREATE TABLE silver.order_item (
+        order_item_id INT PRIMARY KEY,           -- Unique item line ID
+        order_id INT,                            -- FK → silver.orders
+        product_barcode_id INT,                  -- FK → silver.product
+
+        order_item_quantity INT,                 -- Quantity sold of this product
+        order_item_discount DECIMAL(18,4),       -- Discount amount €
+        order_item_discount_percentage DECIMAL(18,4), -- Discount percentage
+        order_item_gross_total DECIMAL(18,4),    -- Gross amount (before discount)
+        order_item_net_total DECIMAL(18,4),      -- Net amount (after discount)
+
+        order_profit_per_order_item DECIMAL(18,4), -- Profit per product line (renamed)
+        earning_per_order_item DECIMAL(18,4),      -- Benefit per product line (renamed)
+        total_sale_per_customer DECIMAL(18,4)      -- Lifetime customer total (repeated for aggregation)
     );
 
-    PRINT '✅ Clean table structures created.';
+    PRINT '✅ Clean normalized table structures created successfully.';
+    PRINT '----------------------------------------------------';
 
 
     /* =======================================================
-       STEP 3️⃣ - POPULATE TABLES
+       3️⃣ Populate normalized tables
     ======================================================= */
-    PRINT '🚚 Populating data into entity tables...';
 
-    -- =====================
-    -- Customer
-    -- =====================
+    PRINT '🚚 Populating CUSTOMER...';
     INSERT INTO silver.customer
     SELECT DISTINCT
         customer_id,
@@ -125,55 +130,50 @@ BEGIN
         types_of_customers
     FROM silver.dataco_supply_chain
     WHERE customer_id IS NOT NULL;
-
     PRINT '✅ silver.customer populated.';
 
 
-    -- =====================
-    -- Product (Deduplication Safe)
-    -- =====================
+    PRINT '🚚 Populating PRODUCT (deduplicated by barcode)...';
+    ;WITH product_dedup AS (
+        SELECT 
+            product_barcode_id,
+            product_name,
+            product_category_id,
+            product_category_name,
+            store_department_id,
+            store_department_name,
+            product_unit_price,
+            store_location_latitude,
+            store_location_longitude,
+            ROW_NUMBER() OVER (
+                PARTITION BY product_barcode_id 
+                ORDER BY product_name
+            ) AS rn
+        FROM silver.dataco_supply_chain
+        WHERE product_barcode_id IS NOT NULL
+    )
     INSERT INTO silver.product
-    SELECT
+    SELECT 
         product_barcode_id,
-        MAX(product_name) AS product_name,
-        MAX(product_category_id) AS product_category_id,
-        MAX(product_category_name) AS product_category_name,
-        MAX(store_department_id) AS store_department_id,
-        MAX(store_department_name) AS store_department_name,
-        MAX(product_unit_price) AS product_unit_price,
-        MAX(store_location_latitude) AS store_location_latitude,
-        MAX(store_location_longitude) AS store_location_longitude
-    FROM silver.dataco_supply_chain
-    WHERE product_barcode_id IS NOT NULL
-    GROUP BY product_barcode_id;
-
-    PRINT '✅ silver.product populated.';
+        product_name,
+        product_category_id,
+        product_category_name,
+        store_department_id,
+        store_department_name,
+        product_unit_price,
+        store_location_latitude,
+        store_location_longitude
+    FROM product_dedup
+    WHERE rn = 1;
+    PRINT '✅ silver.product populated (deduplicated).';
 
 
-    -- =====================
-    -- Shipping (Deduplication Safe)
-    -- =====================
-    INSERT INTO silver.shipping
-    SELECT
-        shipping_mode,
-        AVG(scheduled_delivery_days) AS scheduled_delivery_days,
-        AVG(actual_shipping_days) AS actual_shipping_days,
-        AVG(order_late_delivery_risk) AS order_late_delivery_risk,
-        MAX(order_delivery_status) AS order_delivery_status
-    FROM silver.dataco_supply_chain
-    WHERE shipping_mode IS NOT NULL
-    GROUP BY shipping_mode;
-
-    PRINT '✅ silver.shipping populated.';
-
-
-    -- =====================
-    -- Orders
-    -- =====================
+    PRINT '🚚 Populating ORDERS...';
     INSERT INTO silver.orders
     SELECT DISTINCT
         order_id,
         customer_id,
+        payment_type,
         order_date,
         order_time,
         order_state,
@@ -182,59 +182,40 @@ BEGIN
         order_subregion,
         order_country,
         order_city,
-        order_continent
+        order_continent,
+        shipping_mode,
+        scheduled_delivery_days,
+        actual_shipping_days,
+        order_late_delivery_risk,
+        order_delivery_status,
+        shipping_date,
+        shipping_time
     FROM silver.dataco_supply_chain
     WHERE order_id IS NOT NULL;
-
     PRINT '✅ silver.orders populated.';
 
 
-    -- =====================
-    -- Order Transactions
-    -- =====================
-    INSERT INTO silver.order_transaction (
-        order_item_id,
-        order_id,
-        product_barcode_id,
-        shipping_mode,
-        payment_type,
-        order_item_quantity,
-        order_item_discount,
-        order_item_discount_percentage,
-        order_item_gross_total,
-        order_item_net_total,
-        order_profit_per_order,
-        earning_per_order,
-        total_sale_per_customer,
-        late_delivery_flag,
-        shipping_date,
-        shipping_time
-    )
+    PRINT '🚚 Populating ORDER_ITEM...';
+    INSERT INTO silver.order_item
     SELECT
         order_item_id,
         order_id,
         product_barcode_id,
-        shipping_mode,
-        payment_type,
         order_item_quantity,
         order_item_discount,
         order_item_discount_percentage,
         order_item_gross_total,
         order_item_net_total,
-        order_profit_per_order,
-        earning_per_order,
-        total_sale_per_customer,
-        order_late_delivery_risk,
-        shipping_date,
-        shipping_time
+        order_profit_per_order_item,   -- renamed (from Order Profit Per Order)
+        earning_per_order_item,        -- renamed (from Benefit per order)
+        total_sale_per_customer
     FROM silver.dataco_supply_chain
     WHERE order_item_id IS NOT NULL;
+    PRINT '✅ silver.order_item populated.';
 
-    PRINT '✅ silver.order_transaction populated.';
 
-
-    PRINT '=========================================';
-    PRINT '🎯 Rebuild + Normalization Completed!';
-    PRINT '=========================================';
+    PRINT '===================================================================';
+    PRINT '🎯 Silver Normalization Completed Successfully (Final Version)';
+    PRINT '===================================================================';
 END;
 GO
