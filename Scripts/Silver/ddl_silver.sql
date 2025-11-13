@@ -14,17 +14,17 @@ Purpose:
 -- =======================================================================
 -- Drop table if exists
 -- =======================================================================
-IF OBJECT_ID('silver.dataco_supply_chain_cleaned','U') IS NOT NULL
+IF OBJECT_ID('silver.dataco_supply_chain','U') IS NOT NULL
 BEGIN
     PRINT 'Dropping existing table: silver.dataco_supply_chain_cleaned';
-    DROP TABLE silver.dataco_supply_chain_cleaned;
+    DROP TABLE silver.dataco_supply_chain;
 END
 GO
 
 -- =======================================================================
 -- Create Silver Table (Cleaned & Standardized)
 -- =======================================================================
-CREATE TABLE silver.dataco_supply_chain_cleaned (
+CREATE TABLE silver.dataco_supply_chain (
     payment_type                    VARCHAR(50),        -- from [Type]
     actual_shipping_days             INT,                -- from [Days for shipping (real)]
     scheduled_delivery_days          INT,                -- from [Days for shipment (scheduled)]
@@ -78,7 +78,7 @@ CREATE TABLE silver.dataco_supply_chain_cleaned (
 );
 GO
 
-PRINT 'Created table: silver.dataco_supply_chain_cleaned';
+PRINT 'Created table: silver.dataco_supply_chain';
 PRINT '-----------------------------------------------------------';
 PRINT 'Silver Layer DDL executed successfully.';
 GO
