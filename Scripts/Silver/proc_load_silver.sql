@@ -37,7 +37,7 @@ BEGIN
         payment_type,
         actual_shipping_days,
         scheduled_delivery_days,
-        earning_per_order,
+        earning_per_order_item,
         total_sale_per_customer,
         order_delivery_status,
         order_late_delivery_risk,
@@ -73,7 +73,7 @@ BEGIN
         order_item_quantity,
         order_item_gross_total,
         order_item_net_total,
-        order_profit_per_order,
+        order_profit_per_order_item,
         order_state,
         order_status,
         order_zipcode,
@@ -96,7 +96,7 @@ BEGIN
 
         [Days for shipping (real)] AS actual_shipping_days,
         [Days for shipment (scheduled)] AS scheduled_delivery_days,
-        [Benefit per order] AS earning_per_order,
+        [Benefit per order] AS earning_per_order_item,
         [Sales per customer] AS total_sale_per_customer,
         [Delivery Status] AS order_delivery_status,
         [Late_delivery_risk] AS order_late_delivery_risk,
@@ -204,7 +204,7 @@ BEGIN
         [Order Item Quantity] AS order_item_quantity,
         ROUND([Sales], 1) AS order_item_gross_total,
         ROUND([Order Item Total], 1) AS order_item_net_total,
-        ROUND([Order Profit Per Order], 1) AS order_profit_per_order,
+        ROUND([Order Profit Per Order], 1) AS order_profit_per_order_item,
 
         [Order State] AS order_state,
 
