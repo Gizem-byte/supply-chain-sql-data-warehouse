@@ -81,32 +81,5 @@ CREATE TABLE bronze.dataco_supply_chain(
 GO
 
 PRINT 'Created table bronze.dataco_supply_chain';
-
-
-
--- =======================================================================
--- Tokenized Access Logs (Optional)
--- =======================================================================
-
-IF OBJECT_ID ('bronze.tokenized_access_logs','U') IS NOT NULL
-    PRINT 'Dropping existing table: bronze.tokenized_access_logs';
-	DROP TABLE bronze.tokenized_access_logs;
-GO
-
-CREATE TABLE bronze.tokenized_access_logs (
-
-    "Product"        VARCHAR(255),
-    "Category"       VARCHAR(150),
-    "Date"           VARCHAR(50),
-    "Month"          VARCHAR(50),
-    "Hour"           INT,
-    "Department"     VARCHAR(150),
-    "ip"             VARCHAR(100),
-    "url"            VARCHAR(500)
-);
-GO
-
-
-PRINT 'Created table: bronze.tokenized_access_logs';
 PRINT 'Bronze layer table creation completed successfully.';
 GO
