@@ -30,10 +30,10 @@ BEGIN
     PRINT '=========================================================';
 
     -- Clear existing Silver data
-    TRUNCATE TABLE silver.dataco_supply_chain;
+    TRUNCATE TABLE silver.dataco_supply_chain_cleaned;
 
     -- Insert transformed and cleaned data from Bronze
-    INSERT INTO silver.dataco_supply_chain (
+    INSERT INTO silver.dataco_supply_chain_cleaned(
         payment_type,
         actual_shipping_days,
         scheduled_delivery_days,
