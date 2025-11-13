@@ -14,17 +14,17 @@ Purpose:
 -- =======================================================================
 -- Drop table if exists
 -- =======================================================================
-IF OBJECT_ID('silver.dataco_supply_chain','U') IS NOT NULL
+IF OBJECT_ID('silver.dataco_supply_chain_cleaned','U') IS NOT NULL
 BEGIN
-    PRINT 'Dropping existing table: silver.dataco_supply_chain';
-    DROP TABLE silver.dataco_supply_chain;
+    PRINT 'Dropping existing table: silver.dataco_supply_chain_cleaned';
+    DROP TABLE silver.dataco_supply_chain_cleaned;
 END
 GO
 
 -- =======================================================================
 -- Create Silver Table (Cleaned & Standardized)
 -- =======================================================================
-CREATE TABLE silver.dataco_supply_chain (
+CREATE TABLE silver.dataco_supply_chain_cleaned (
     payment_type                    VARCHAR(50),        -- from [Type]
     actual_shipping_days             INT,                -- from [Days for shipping (real)]
     scheduled_delivery_days          INT,                -- from [Days for shipment (scheduled)]
@@ -78,34 +78,7 @@ CREATE TABLE silver.dataco_supply_chain (
 );
 GO
 
-PRINT 'Created table: silver.dataco_supply_chain';
+PRINT 'Created table: silver.dataco_supply_chain_cleaned';
 PRINT '-----------------------------------------------------------';
-
-
-
--- =======================================================================
--- Tokenized Access Logs (Optional)
--- =======================================================================
-IF OBJECT_ID('silver.tokenized_access_logs','U') IS NOT NULL
-BEGIN
-    PRINT 'Dropping existing table: silver.tokenized_access_logs';
-    DROP TABLE silver.tokenized_access_logs;
-END
-GO
-
-CREATE TABLE silver.tokenized_access_logs (
-    product             VARCHAR(255),   -- from [Product]
-    category            VARCHAR(150),   -- from [Category]
-    log_date            VARCHAR(50),    -- from [Date]
-    log_month           VARCHAR(50),    -- from [Month]
-    log_hour            INT,            -- from [Hour]
-    department          VARCHAR(150),   -- from [Department]
-    ip                  VARCHAR(100),   -- from [ip]
-    url                 VARCHAR(500),   -- from [url]
-    ingestion_timestamp DATETIME2 DEFAULT SYSDATETIME()
-);
-GO
-
-PRINT 'Created table: silver.tokenized_access_logs';
 PRINT 'Silver Layer DDL executed successfully.';
 GO
