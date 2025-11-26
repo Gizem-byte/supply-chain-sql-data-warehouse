@@ -1,9 +1,10 @@
 /*=====================================================================
-  METADATA COLUMN MAPPING — Bronze → Silver
+  METADATA COLUMN MAPPING — Bronze → Silver (FINAL FIXED VERSION)
   ---------------------------------------------------------------
-  • Column order matches exactly the Bronze table definition
-  • Each mapping classified as: renamed / derived / removed / unchanged
-  • "remarks" explain transformation, derivation, or removal reason
+  • 100% aligned with your final Silver DDL + proc_load_silver
+  • Removed incorrect & duplicate mappings
+  • Updated renamed fields
+  • Added derived fields
 =====================================================================*/
 
 IF OBJECT_ID('metadata.column_mapping_bronze_to_silver','U') IS NOT NULL
@@ -23,71 +24,114 @@ CREATE TABLE metadata.column_mapping_bronze_to_silver (
 );
 GO
 
+/*===============================================================
+   1️⃣ Direct mappings / renamed / transformed
+===============================================================*/
+
 INSERT INTO metadata.column_mapping_bronze_to_silver
-(source_schema, source_table, source_column, target_schema, target_table, target_column, change_type, remarks)
+(source_schema, source_table, source_column,
+ target_schema, target_table, target_column,
+ change_type, remarks)
 VALUES
-('bronze','dataco_supply_chain','Type','silver','dataco_supply_chain','payment_type','renamed','Standardized payment type text (Cash, Debit, etc.)'),
+-- PAYMENT
+('bronze','dataco_supply_chain','Type','silver','dataco_supply_chain','payment_type','renamed','Normalized payment naming'),
+
+-- SHIPPING
 ('bronze','dataco_supply_chain','Days for shipping (real)','silver','dataco_supply_chain','actual_shipping_days','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Days for shipment (scheduled)','silver','dataco_supply_chain','scheduled_delivery_days','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Benefit per order','silver','dataco_supply_chain','earning_per_order_item','renamed','Renamed to earning_per_order'),
+('bronze','dataco_supply_chain','Days for shipment (scheduled)','silver','dataco_supply_chain','scheduled_shipping_days','renamed','Correct column name'),
+('bronze','dataco_supply_chain','Shipping Mode','silver','dataco_supply_chain','shipping_mode','unchanged','Same meaning'),
+
+-- FINANCIAL
+('bronze','dataco_supply_chain','Benefit per order','silver','dataco_supply_chain','earning_per_order_item','renamed','Renamed for clarity'),
 ('bronze','dataco_supply_chain','Sales per customer','silver','dataco_supply_chain','total_sale_per_customer','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Delivery Status','silver','dataco_supply_chain','order_delivery_status','renamed','Renamed and standardized'),
-('bronze','dataco_supply_chain','Late_delivery_risk','silver','dataco_supply_chain','order_late_delivery_risk','renamed','Renamed for consistency'),
-('bronze','dataco_supply_chain','Category Id','silver','dataco_supply_chain','product_category_id','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Category Name','silver','dataco_supply_chain','product_category_name','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Customer City','silver','dataco_supply_chain','customer_city','renamed','Same meaning, standardized name'),
-('bronze','dataco_supply_chain','Customer Country','silver','dataco_supply_chain','customer_country','renamed','Country name normalized (e.g., US → United States)'),
-('bronze','dataco_supply_chain','Customer Email','silver','dataco_supply_chain',NULL,'removed','PII removed for compliance'),
-('bronze','dataco_supply_chain','Customer Fname','silver','dataco_supply_chain','customer_full_name','derived','Merged with Lname into full name'),
-('bronze','dataco_supply_chain','Customer Id','silver','dataco_supply_chain','customer_id','unchanged','Primary key retained'),
-('bronze','dataco_supply_chain','Customer Lname','silver','dataco_supply_chain','customer_full_name','derived','Merged with Fname into full name'),
-('bronze','dataco_supply_chain','Customer Password','silver','dataco_supply_chain',NULL,'removed','PII removed for compliance'),
+
+-- DELIVERY
+('bronze','dataco_supply_chain','Delivery Status','silver','dataco_supply_chain','order_delivery_status','renamed','Title-cased'),
+('bronze','dataco_supply_chain','Late_delivery_risk','silver','dataco_supply_chain','order_late_delivery_risk','renamed','Converted to int'),
+('bronze','dataco_supply_chain','shipping date (DateOrders)','silver','dataco_supply_chain','shipping_date','derived','Date extracted only'),
+
+-- PRODUCT CATEGORY
+('bronze','dataco_supply_chain','Category Id','silver','dataco_supply_chain','product_category_id','renamed','Primary product category id'),
+('bronze','dataco_supply_chain','Category Name','silver','dataco_supply_chain','product_category_name','renamed','Cleaned name'),
+
+-- CUSTOMER
+('bronze','dataco_supply_chain','Customer City','silver','dataco_supply_chain','customer_city','unchanged','Same meaning'),
+('bronze','dataco_supply_chain','Customer Country','silver','dataco_supply_chain','customer_country','renamed','Country normalized'),
+('bronze','dataco_supply_chain','Customer Fname','silver','dataco_supply_chain','customer_full_name','derived','Merged with Lname'),
+('bronze','dataco_supply_chain','Customer Lname','silver','dataco_supply_chain','customer_full_name','derived','Merged with Fname'),
+('bronze','dataco_supply_chain','Customer Id','silver','dataco_supply_chain','customer_id','unchanged','Natural key retained'),
 ('bronze','dataco_supply_chain','Customer Segment','silver','dataco_supply_chain','types_of_customers','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Customer State','silver','dataco_supply_chain','customer_state','renamed','State name standardized'),
-('bronze','dataco_supply_chain','Customer Street','silver','dataco_supply_chain','customer_full_street','renamed','Full address retained'),
-('bronze','dataco_supply_chain','Customer Zipcode','silver','dataco_supply_chain','customer_zipcode','unchanged','Same meaning'),
-('bronze','dataco_supply_chain','Department Id','silver','dataco_supply_chain','store_department_id','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Department Name','silver','dataco_supply_chain','store_department_name','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Latitude','silver','dataco_supply_chain','store_location_latitude','renamed','Renamed and standardized'),
-('bronze','dataco_supply_chain','Longitude','silver','dataco_supply_chain','store_location_longitude','renamed','Renamed and standardized'),
-('bronze','dataco_supply_chain','Market','silver','dataco_supply_chain','order_continent','renamed','Recoded market regions (LATAM → Latin America)'),
-('bronze','dataco_supply_chain','Order City','silver','dataco_supply_chain','order_city','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Order Country','silver','dataco_supply_chain','order_country','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Order Customer Id','silver','dataco_supply_chain','order_customer_id','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','order date (DateOrders)','silver','dataco_supply_chain','order_date','derived','Extracted date only'),
-('bronze','dataco_supply_chain','Order Id','silver','dataco_supply_chain','order_id','unchanged','Same identifier'),
-('bronze','dataco_supply_chain','Order Item Cardprod Id','silver','dataco_supply_chain','order_item_product_barcode_id','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Order Item Discount','silver','dataco_supply_chain','order_item_discount','renamed','Rounded and standardized'),
-('bronze','dataco_supply_chain','Order Item Discount Rate','silver','dataco_supply_chain','order_item_discount_percentage','renamed','Rounded and standardized'),
-('bronze','dataco_supply_chain','Order Item Id','silver','dataco_supply_chain','order_item_id','unchanged','Same identifier'),
-('bronze','dataco_supply_chain','Order Item Product Price','silver','dataco_supply_chain',NULL,'removed','Duplicate of Product Price'),
+('bronze','dataco_supply_chain','Customer State','silver','dataco_supply_chain','customer_state','renamed','Standardized state names'),
+('bronze','dataco_supply_chain','Customer Street','silver','dataco_supply_chain','customer_full_street','renamed','Full street kept'),
+
+-- ORDER LOCATION
+('bronze','dataco_supply_chain','Order City','silver','dataco_supply_chain','order_city','renamed','Destination city'),
+('bronze','dataco_supply_chain','Order Country','silver','dataco_supply_chain','order_country','renamed','Destination country'),
+('bronze','dataco_supply_chain','Order Region','silver','dataco_supply_chain','order_subregion','renamed','Renamed for clarity'),
+('bronze','dataco_supply_chain','Order State','silver','dataco_supply_chain','order_state','renamed','Destination state'),
+('bronze','dataco_supply_chain','Market','silver','dataco_supply_chain','order_continent','renamed','Mapped USCA/LATAM → readable'),
+
+-- ORDER ID + DATE
+('bronze','dataco_supply_chain','Order Id','silver','dataco_supply_chain','order_id','unchanged','Natural key'),
+('bronze','dataco_supply_chain','order date (DateOrders)','silver','dataco_supply_chain','order_date','derived','Converted using TRY_CASTs'),
+
+-- ORDER ITEM METRICS
+('bronze','dataco_supply_chain','Order Item Discount','silver','dataco_supply_chain','order_item_discount','renamed','Rounded'),
+('bronze','dataco_supply_chain','Order Item Discount Rate','silver','dataco_supply_chain','order_item_discount_percentage','renamed','Rounded'),
+('bronze','dataco_supply_chain','Order Item Id','silver','dataco_supply_chain','order_item_id','unchanged','Item-level key'),
+('bronze','dataco_supply_chain','Product Price','silver','dataco_supply_chain','product_unit_price','renamed','Rounded price'),
 ('bronze','dataco_supply_chain','Order Item Profit Ratio','silver','dataco_supply_chain','order_item_profit_ratio','unchanged','Same meaning'),
 ('bronze','dataco_supply_chain','Order Item Quantity','silver','dataco_supply_chain','order_item_quantity','unchanged','Same meaning'),
-('bronze','dataco_supply_chain','Sales','silver','dataco_supply_chain','order_item_gross_total','renamed','Renamed and rounded'),
-('bronze','dataco_supply_chain','Order Item Total','silver','dataco_supply_chain','order_item_net_total','renamed','Renamed and rounded'),
-('bronze','dataco_supply_chain','Order Profit Per Order','silver','dataco_supply_chain','order_profit_per_order_item','renamed','Renamed and rounded'),
-('bronze','dataco_supply_chain','Order Region','silver','dataco_supply_chain','order_subregion','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Order State','silver','dataco_supply_chain','order_state','renamed','Same meaning'),
-('bronze','dataco_supply_chain','Order Status','silver','dataco_supply_chain','order_status','renamed','Formatted to Title Case'),
-('bronze','dataco_supply_chain','Order Zipcode','silver','dataco_supply_chain','order_zipcode','renamed','Same meaning'),
-('bronze','dataco_supply_chain','Product Card Id','silver','dataco_supply_chain','product_barcode_id','renamed','Renamed for consistency'),
-('bronze','dataco_supply_chain','Product Category Id','silver','dataco_supply_chain',NULL,'removed','Duplicate of Category Id'),
-('bronze','dataco_supply_chain','Product Description','silver','dataco_supply_chain',NULL,'removed','Non-analytic text'),
-('bronze','dataco_supply_chain','Product Image','silver','dataco_supply_chain',NULL,'removed','Unstructured / not required'),
+('bronze','dataco_supply_chain','Sales','silver','dataco_supply_chain','order_item_gross_total','renamed','Rounded'),
+('bronze','dataco_supply_chain','Order Item Total','silver','dataco_supply_chain','order_item_net_total','renamed','Rounded'),
+('bronze','dataco_supply_chain','Order Profit Per Order','silver','dataco_supply_chain','order_profit_per_order_item','renamed','Rounded'),
+
+-- PRODUCT IDENTIFIERS
+('bronze','dataco_supply_chain','Product Card Id','silver','dataco_supply_chain','product_barcode_id','renamed','Primary product id'),
 ('bronze','dataco_supply_chain','Product Name','silver','dataco_supply_chain','product_name','unchanged','Same meaning'),
-('bronze','dataco_supply_chain','Product Price','silver','dataco_supply_chain','product_unit_price','renamed','Renamed for clarity'),
-('bronze','dataco_supply_chain','Product Status','silver','dataco_supply_chain',NULL,'removed','Non-analytic'),
-('bronze','dataco_supply_chain','shipping date (DateOrders)','silver','dataco_supply_chain','shipping_date','derived','Extracted date only'),
-('bronze','dataco_supply_chain','Shipping Mode','silver','dataco_supply_chain','shipping_mode','unchanged','Same meaning');
+
+-- STORE INFO
+('bronze','dataco_supply_chain','Department Id','silver','dataco_supply_chain','store_department_id','renamed','Store department'),
+('bronze','dataco_supply_chain','Department Name','silver','dataco_supply_chain','store_department_name','renamed','Store department name'),
+('bronze','dataco_supply_chain','Latitude','silver','dataco_supply_chain','store_location_latitude','renamed','Renamed for clarity'),
+('bronze','dataco_supply_chain','Longitude','silver','dataco_supply_chain','store_location_longitude','renamed','Renamed for clarity');
 GO
 
--- Add derived fields that didn’t exist in Bronze
+
+/*===============================================================
+   2️⃣ Derived fields (not present in Bronze)
+===============================================================*/
+
 INSERT INTO metadata.column_mapping_bronze_to_silver
-(source_schema, source_table, source_column, target_schema, target_table, target_column, change_type, remarks)
+(source_schema, source_table, source_column, 
+ target_schema, target_table, target_column,
+ change_type, remarks)
 VALUES
-(NULL,NULL,NULL,'silver','dataco_supply_chain','order_time','new derived','Extracted time portion from order date'),
-(NULL,NULL,NULL,'silver','dataco_supply_chain','shipping_time','new derived','Extracted time portion from shipping date'),
-(NULL,NULL,NULL,'silver','dataco_supply_chain','customer_street_number','new derived','Parsed from Customer Street'),
-(NULL,NULL,NULL,'silver','dataco_supply_chain','customer_street_name','new derived','Parsed from Customer Street'),
-(NULL,NULL,NULL,'silver','dataco_supply_chain','ingestion_timestamp','new system column','Added for ETL tracking');
+(NULL,NULL,NULL,'silver','dataco_supply_chain','order_time','derived','Extracted with FORMAT'),
+(NULL,NULL,NULL,'silver','dataco_supply_chain','shipping_time','derived','Extracted with FORMAT'),
+(NULL,NULL,NULL,'silver','dataco_supply_chain','customer_street_number','derived','Parsed from full street'),
+(NULL,NULL,NULL,'silver','dataco_supply_chain','customer_street_name','derived','Parsed from full street'),
+(NULL,NULL,NULL,'silver','dataco_supply_chain','ingestion_timestamp','derived','Added by DDL to track load time');
+GO
+
+
+/*===============================================================
+   3️⃣ Removed columns (compliance / duplicates / unused)
+===============================================================*/
+
+INSERT INTO metadata.column_mapping_bronze_to_silver
+(source_schema, source_table, source_column, 
+ target_schema, target_table, target_column,
+ change_type, remarks)
+VALUES
+('bronze','dataco_supply_chain','Customer Email', 'silver','dataco_supply_chain',NULL,'removed','PII removed'),
+('bronze','dataco_supply_chain','Customer Password','silver','dataco_supply_chain',NULL,'removed','PII removed'),
+('bronze','dataco_supply_chain','Product Description','silver','dataco_supply_chain',NULL,'removed','Unstructured text'),
+('bronze','dataco_supply_chain','Product Image','silver','dataco_supply_chain',NULL,'removed','Not useful for analytics'),
+('bronze','dataco_supply_chain','Product Status','silver','dataco_supply_chain',NULL,'removed','Not meaningful'),
+('bronze','dataco_supply_chain','Order Item Product Price','silver','dataco_supply_chain',NULL,'removed','Duplicate of Product Price'),
+('bronze','dataco_supply_chain','Product Category Id','silver','dataco_supply_chain',NULL,'removed','Duplicate of Category Id'),
+('bronze','dataco_supply_chain','Customer Zipcode','silver','dataco_supply_chain',NULL,'removed','Removed from Silver structure'),
+('bronze','dataco_supply_chain','Order Zipcode','silver','dataco_supply_chain',NULL,'removed','Removed from Silver structure'),
+('bronze','dataco_supply_chain','Order Item Cardprod Id','silver','dataco_supply_chain',NULL,'removed','Duplicate of Product Card Id');
 GO
