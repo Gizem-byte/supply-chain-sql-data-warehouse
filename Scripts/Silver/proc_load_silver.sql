@@ -253,7 +253,5 @@ BEGIN
     PRINT 'Silver Layer Load Completed Successfully!';
 END;
 GO
-essfully!';
-END;
-GO
+
 
