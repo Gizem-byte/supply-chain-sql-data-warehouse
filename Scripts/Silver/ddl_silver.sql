@@ -52,7 +52,6 @@ CREATE TABLE silver.dataco_supply_chain (
     order_date                       DATE,               -- derived from [order date (DateOrders)]
     order_time                       VARCHAR(5),         -- derived from [order date (DateOrders)]
     order_id                         INT,                -- from [Order Id]
-    order_item_product_barcode_id    INT,                -- from [Order Item Cardprod Id]
     order_item_discount              FLOAT,              -- from [Order Item Discount]
     order_item_discount_percentage   FLOAT,              -- from [Order Item Discount Rate]
     order_item_id                    INT,                -- from [Order Item Id]
