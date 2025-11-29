@@ -57,14 +57,16 @@ BEGIN
         customer_street_name
     )
     SELECT
-        /* Payment Type Normalization */
+        /* =======================
+           PAYMENT TYPE CLEANING
+           ======================= */
         CASE 
             WHEN Type = 'CASH' THEN 'Cash'
             WHEN Type = 'DEBIT' THEN 'Debit'
             WHEN Type = 'TRANSFER' THEN 'Transfer (unspecified)'
             WHEN Type = 'PAYMENT' THEN 'Payment (unspecified)'
             ELSE 'Unknown'
-        END,
+        END AS payment_type,
 
         [Days for shipping (real)],
         [Days for shipment (scheduled)],
@@ -76,19 +78,75 @@ BEGIN
         [Category Name],
         [Customer City],
 
-        /* Country Normalization */
+        /* =======================
+           COUNTRY NORMALIZATION
+           ======================= */
         CASE 
             WHEN [Customer Country] IN ('EE. UU.', 'US', 'U.S.') THEN 'United States'
             WHEN [Customer Country] = 'MTxico' THEN 'México'
             WHEN [Customer Country] = 'Panamß' THEN 'Panamá'
             ELSE [Customer Country]
-        END,
+        END AS customer_country,
 
-        CONCAT(COALESCE([Customer Fname], ''), ' ', COALESCE([Customer Lname], '')),
+        CONCAT(COALESCE([Customer Fname], ''), ' ', COALESCE([Customer Lname], '')) AS customer_full_name,
         [Customer Id],
         [Customer Segment],
 
-        [Customer State],
+        /* ================================
+           ⭐ FULL STATE NAME NORMALIZATION
+           ================================ */
+        CASE 
+            WHEN [Customer State] = 'AL' THEN 'Alabama'
+            WHEN [Customer State] = 'AZ' THEN 'Arizona'
+            WHEN [Customer State] = 'AR' THEN 'Arkansas'
+            WHEN [Customer State] = 'CA' THEN 'California'
+            WHEN [Customer State] = 'CO' THEN 'Colorado'
+            WHEN [Customer State] = 'CT' THEN 'Connecticut'
+            WHEN [Customer State] = 'DC' THEN 'District of Columbia'
+            WHEN [Customer State] = 'DE' THEN 'Delaware'
+            WHEN [Customer State] = 'FL' THEN 'Florida'
+            WHEN [Customer State] = 'GA' THEN 'Georgia'
+            WHEN [Customer State] = 'HI' THEN 'Hawaii'
+            WHEN [Customer State] = 'ID' THEN 'Idaho'
+            WHEN [Customer State] = 'IL' THEN 'Illinois'
+            WHEN [Customer State] = 'IN' THEN 'Indiana'
+            WHEN [Customer State] = 'IA' THEN 'Iowa'
+            WHEN [Customer State] = 'KS' THEN 'Kansas'
+            WHEN [Customer State] = 'KY' THEN 'Kentucky'
+            WHEN [Customer State] = 'LA' THEN 'Louisiana'
+            WHEN [Customer State] = 'MA' THEN 'Massachusetts'
+            WHEN [Customer State] = 'MD' THEN 'Maryland'
+            WHEN [Customer State] = 'MI' THEN 'Michigan'
+            WHEN [Customer State] = 'MN' THEN 'Minnesota'
+            WHEN [Customer State] = 'MO' THEN 'Missouri'
+            WHEN [Customer State] = 'MT' THEN 'Montana'
+            WHEN [Customer State] = 'NC' THEN 'North Carolina'
+            WHEN [Customer State] = 'ND' THEN 'North Dakota'
+            WHEN [Customer State] = 'NE' THEN 'Nebraska'
+            WHEN [Customer State] = 'NH' THEN 'New Hampshire'
+            WHEN [Customer State] = 'NJ' THEN 'New Jersey'
+            WHEN [Customer State] = 'NM' THEN 'New Mexico'
+            WHEN [Customer State] = 'NV' THEN 'Nevada'
+            WHEN [Customer State] = 'NY' THEN 'New York'
+            WHEN [Customer State] = 'OH' THEN 'Ohio'
+            WHEN [Customer State] = 'OK' THEN 'Oklahoma'
+            WHEN [Customer State] = 'OR' THEN 'Oregon'
+            WHEN [Customer State] = 'PA' THEN 'Pennsylvania'
+            WHEN [Customer State] = 'PR' THEN 'Puerto Rico'
+            WHEN [Customer State] = 'RI' THEN 'Rhode Island'
+            WHEN [Customer State] = 'SC' THEN 'South Carolina'
+            WHEN [Customer State] = 'SD' THEN 'South Dakota'
+            WHEN [Customer State] = 'TN' THEN 'Tennessee'
+            WHEN [Customer State] = 'TX' THEN 'Texas'
+            WHEN [Customer State] = 'UT' THEN 'Utah'
+            WHEN [Customer State] = 'VA' THEN 'Virginia'
+            WHEN [Customer State] = 'VT' THEN 'Vermont'
+            WHEN [Customer State] = 'WA' THEN 'Washington'
+            WHEN [Customer State] = 'WI' THEN 'Wisconsin'
+            WHEN [Customer State] = 'WV' THEN 'West Virginia'
+            WHEN [Customer State] = 'WY' THEN 'Wyoming'
+            ELSE [Customer State]
+        END AS customer_state,
 
         [Customer Street],
         [Department Id],
@@ -98,13 +156,15 @@ BEGIN
 
         CASE WHEN Market = 'LATAM' THEN 'Latin America'
              WHEN Market = 'USCA' THEN 'North America'
-             ELSE Market END,
+             ELSE Market END AS order_continent,
 
         [Order City],
         [Order Country],
         [Order Customer Id],
 
-        /* ⭐ SAFE ORDER DATE PARSING ⭐ */
+        /* ===========================
+           SAFE DATE PARSING (ORDER)
+           =========================== */
         CASE 
             WHEN ISDATE([order date (DateOrders)]) = 1 
             THEN CAST([order date (DateOrders)] AS DATE)
@@ -118,10 +178,8 @@ BEGIN
         END AS order_time,
 
         [Order Id],
-
         ROUND([Order Item Discount], 1),
         ROUND([Order Item Discount Rate], 2),
-
         [Order Item Id],
         ROUND([Product Price], 1),
         [Order Item Profit Ratio],
@@ -130,29 +188,34 @@ BEGIN
         ROUND([Order Item Total], 1),
         ROUND([Order Profit Per Order], 1),
 
-		[Order Region] AS order_subregion,
-        [Order State] AS order_state,
+        [Order Region],
+        [Order State],
 
-	   CASE 
-			WHEN LOWER([Order Status]) LIKE '%cancel%' THEN 'Canceled'
+        /* ============================================
+           ⭐ FINAL ORDER STATUS STANDARDIZATION ⭐
+           ============================================ */
+        CASE 
+            WHEN LOWER([Order Status]) LIKE '%cancel%' THEN 'Canceled'
 
-			WHEN LOWER([Order Status]) IN (
-				'pending_payment', 'payment_review', 'pending', 'on_hold'
-			) THEN 'Pending'
+            WHEN LOWER([Order Status]) IN (
+                'pending_payment', 'payment_review', 'pending', 'on_hold'
+            ) THEN 'Pending'
 
-			WHEN LOWER([Order Status]) IN ('processing') THEN 'Processing'
+            WHEN LOWER([Order Status]) = 'processing' THEN 'Processing'
 
-			WHEN LOWER([Order Status]) IN ('complete', 'closed') THEN 'Completed'
+            WHEN LOWER([Order Status]) IN ('complete', 'closed') THEN 'Completed'
 
-			WHEN LOWER([Order Status]) IN ('suspected_fraud') THEN 'Fraud/Error'
+            WHEN LOWER([Order Status]) = 'suspected_fraud' THEN 'Fraud/Error'
 
-			ELSE 'Other'
-		END AS order_status,
+            ELSE 'Other'
+        END AS order_status,
 
         [Product Card Id],
         [Product Name],
 
-        /* ⭐ SAFE SHIPPING DATE PARSING ⭐ */
+        /* ===========================
+           SAFE DATE PARSING (SHIPPING)
+           =========================== */
         CASE 
             WHEN ISDATE([shipping date (DateOrders)]) = 1 
             THEN CAST([shipping date (DateOrders)] AS DATE)
@@ -167,14 +230,17 @@ BEGIN
 
         [Shipping Mode],
 
-        /* Customer Street split safely */
+        /* ===========================
+           CUSTOMER STREET SPLIT
+           =========================== */
         CASE WHEN CHARINDEX(' ', [Customer Street]) > 0
              THEN LEFT([Customer Street], CHARINDEX(' ', [Customer Street]) - 1)
-             ELSE NULL END,
+             ELSE NULL END AS customer_street_number,
 
         CASE WHEN CHARINDEX(' ', [Customer Street]) > 0
              THEN SUBSTRING([Customer Street], CHARINDEX(' ', [Customer Street]) + 1, LEN([Customer Street]))
-             ELSE NULL END
+             ELSE NULL END AS customer_street_name
+
     FROM bronze.dataco_supply_chain;
 
     PRINT 'Silver Load Completed Successfully (Safe Mode)!';
