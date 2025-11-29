@@ -1,26 +1,3 @@
-/*
-===============================================================================
-Stored Procedure: Load Silver Layer (Bronze -> Silver)
-Stored Procedure : proc_load_silver
-Purpose          : Transform/clean Bronze data into Silver layer
-===============================================================================
-===============================================================================
-Script Purpose:
-    This stored procedure performs the ETL (Extract, Transform, Load) process to 
-    populate the 'silver' schema tables from the 'bronze' schema.
-	Actions Performed:
-		- Truncates Silver tables.
-		- Inserts transformed and cleansed data from Bronze into Silver tables.
-		
-Parameters:
-    None. 
-	  This stored procedure does not accept any parameters or return any values.
-
-Usage Example:
-    EXEC proc.load_silver;
-===============================================================================
-*/
-
 CREATE OR ALTER PROCEDURE proc_load_silver AS
 BEGIN
     SET NOCOUNT ON;
@@ -68,9 +45,9 @@ BEGIN
         order_item_gross_total,
         order_item_net_total,
         order_profit_per_order_item,
+        order_subregion,
         order_state,
         order_status,
-        order_subregion,
         product_barcode_id,
         product_name,
         shipping_date,
@@ -153,16 +130,24 @@ BEGIN
         ROUND([Order Item Total], 1),
         ROUND([Order Profit Per Order], 1),
 
-        [Order State],
+		[Order Region] AS order_subregion,
+        [Order State] AS order_state,
 
-        CASE WHEN [Order Status] IS NULL THEN NULL
-             ELSE CONCAT(
-                    UPPER(LEFT(REPLACE(LOWER([Order Status]), '_', ' '), 1)),
-                    SUBSTRING(REPLACE(LOWER([Order Status]), '_', ' '), 2, LEN([Order Status]))
-             )
-        END,
+	   CASE 
+			WHEN LOWER([Order Status]) LIKE '%cancel%' THEN 'Canceled'
 
-        [Order Region],
+			WHEN LOWER([Order Status]) IN (
+				'pending_payment', 'payment_review', 'pending', 'on_hold'
+			) THEN 'Pending'
+
+			WHEN LOWER([Order Status]) IN ('processing') THEN 'Processing'
+
+			WHEN LOWER([Order Status]) IN ('complete', 'closed') THEN 'Completed'
+
+			WHEN LOWER([Order Status]) IN ('suspected_fraud') THEN 'Fraud/Error'
+
+			ELSE 'Other'
+		END AS order_status,
 
         [Product Card Id],
         [Product Name],
