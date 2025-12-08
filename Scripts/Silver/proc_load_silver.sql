@@ -1,3 +1,28 @@
+/*
+===============================================================================
+Stored Procedure : proc_load_silver
+Layer            : Bronze → Silver
+
+Purpose:
+    Loads raw data from bronze.dataco_supply_chain into the Silver layer with
+    standardized, cleaned, and analytics-ready fields.
+
+What this code does (short version):
+    • Truncates the Silver table for a fresh reload.
+    • Renames and standardizes column names.
+    • Cleans inconsistent text values (countries, payment type, order status).
+    • Splits datetime fields into separate date and time columns.
+    • Rounds monetary and percentage fields for consistency.
+    • Derives needed fields (full name, street number/name).
+    • Preserves all analytical line-level columns needed for normalization 
+      and the Gold star schema.
+
+Notes:
+    Silver keeps **one row per order item** and is the clean input for 
+    proc_normalize_silver and all Gold-layer fact/dimension tables.
+===============================================================================
+*/
+
 CREATE OR ALTER PROCEDURE proc_load_silver AS
 BEGIN
     SET NOCOUNT ON;
@@ -39,7 +64,6 @@ BEGIN
         order_item_discount,
         order_item_discount_percentage,
         order_item_id,
-        product_unit_price,
         order_item_profit_ratio,
         order_item_quantity,
         order_item_gross_total,
@@ -50,6 +74,7 @@ BEGIN
         order_status,
         product_barcode_id,
         product_name,
+		product_unit_price,
         shipping_date,
         shipping_time,
         shipping_mode,
@@ -68,15 +93,15 @@ BEGIN
             ELSE 'Unknown'
         END AS payment_type,
 
-        [Days for shipping (real)],
-        [Days for shipment (scheduled)],
-        [Benefit per order],
-        [Sales per customer],
-        [Delivery Status],
-        [Late_delivery_risk],
-        [Category Id],
-        [Category Name],
-        [Customer City],
+        [Days for shipping (real)] AS actual_shipping_days,
+        [Days for shipment (scheduled)] scheduled_shipping_days,
+        [Benefit per order] AS earning_per_order_item,
+        [Sales per customer] AS total_sale_per_customer,
+        [Delivery Status] AS order_delivery_status,
+        [Late_delivery_risk] AS order_late_delivery_risk,
+        [Category Id] AS product_category_id,
+        [Category Name] AS product_category_name,
+        [Customer City] AS customer_city,
 
         /* =======================
            COUNTRY NORMALIZATION
@@ -89,8 +114,8 @@ BEGIN
         END AS customer_country,
 
         CONCAT(COALESCE([Customer Fname], ''), ' ', COALESCE([Customer Lname], '')) AS customer_full_name,
-        [Customer Id],
-        [Customer Segment],
+        [Customer Id] AS customer_id,
+        [Customer Segment] AS types_of_customers,
 
         /* ================================
            ⭐ FULL STATE NAME NORMALIZATION
@@ -148,19 +173,19 @@ BEGIN
             ELSE [Customer State]
         END AS customer_state,
 
-        [Customer Street],
-        [Department Id],
-        [Department Name],
-        [Latitude],
-        [Longitude],
+        [Customer Street] AS customer_full_street,
+        [Department Id] AS store_department_id,
+        [Department Name] AS store_department_name,
+        [Latitude] AS store_location_latitude,
+        [Longitude] AS store_location_longitude,
 
         CASE WHEN Market = 'LATAM' THEN 'Latin America'
              WHEN Market = 'USCA' THEN 'North America'
              ELSE Market END AS order_continent,
 
-        [Order City],
-        [Order Country],
-        [Order Customer Id],
+        [Order City] AS order_city,
+        [Order Country] AS order_city,
+        [Order Customer Id] AS order_customer_id,
 
         /* ===========================
            SAFE DATE PARSING (ORDER)
@@ -177,19 +202,18 @@ BEGIN
             ELSE NULL
         END AS order_time,
 
-        [Order Id],
-        ROUND([Order Item Discount], 1),
-        ROUND([Order Item Discount Rate], 2),
-        [Order Item Id],
-        ROUND([Product Price], 1),
-        [Order Item Profit Ratio],
-        [Order Item Quantity],
-        ROUND([Sales], 1),
-        ROUND([Order Item Total], 1),
-        ROUND([Order Profit Per Order], 1),
+        [Order Id]  AS order_id,
+        ROUND([Order Item Discount], 1) AS order_item_discount,
+        ROUND([Order Item Discount Rate], 2) AS order_item_discount_percentage,
+        [Order Item Id] AS order_item_id,
+        [Order Item Profit Ratio] AS order_item_profit_ratio,
+        [Order Item Quantity] AS order_item_quantity,
+        ROUND([Sales], 1) AS order_item_gross_total,
+        ROUND([Order Item Total], 1) AS order_item_net_total,
+        ROUND([Order Profit Per Order], 1) AS order_profit_per_order_item,
 
-        [Order Region],
-        [Order State],
+        [Order Region] AS order_subregion,
+        [Order State] AS order_state,
 
         /* ============================================
            ⭐ FINAL ORDER STATUS STANDARDIZATION ⭐
@@ -210,8 +234,9 @@ BEGIN
             ELSE 'Other'
         END AS order_status,
 
-        [Product Card Id],
-        [Product Name],
+        [Product Card Id] AS product_barcode_id,
+        [Product Name] AS product_name,
+		ROUND([Product Price], 1) AS product_unit_price,
 
         /* ===========================
            SAFE DATE PARSING (SHIPPING)
@@ -228,7 +253,7 @@ BEGIN
             ELSE NULL
         END AS shipping_time,
 
-        [Shipping Mode],
+        [Shipping Mode] AS shipping_mode,
 
         /* ===========================
            CUSTOMER STREET SPLIT
